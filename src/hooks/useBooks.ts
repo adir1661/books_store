@@ -3,31 +3,32 @@ import {BooksArgs, BooksResponse, RawBook} from "../types.ts";
 import {UseQueryOptions} from "react-query/types/react/types";
 
 const MAX_ITEMS = 40;
-export const getBooks = ({limit, offset}: BooksArgs): Promise<BooksResponse> => {
-  const paginatedUrl = `https://www.googleapis.com/books/v1/volumes?q=cyber&maxResults=${limit}&startIndex=${offset}`
-  console.log({paginatedUrl})
+export const getBooks = ({limit, offset, searchTerm}: BooksArgs): Promise<BooksResponse> => {
+  const paginatedUrl = `https://www.googleapis.com/books/v1/volumes?q=cyber${searchTerm ? '+intitle:' + searchTerm : ''}&maxResults=${limit}&startIndex=${offset}`
   return fetch(paginatedUrl)
     .then(res => res.json())
     .then(rawResponse => {
-      console.log("getBooks fetch")
-      console.log({rawResponse})
       return {
         total: rawResponse.totalItems,
         limit,
         offset,
-        books: rawResponse.items?.map(({volumeInfo}: RawBook) => (
-          {displayName: volumeInfo.title, imageUrl: volumeInfo.imageLinks?.smallThumbnail}
+        books: rawResponse.items?.map(({volumeInfo, id}: RawBook) => (
+          {
+            id: id,
+            displayName: volumeInfo.title,
+            imageUrl: volumeInfo.imageLinks?.smallThumbnail
+          }
         )) || []
       }
     });
 }
 
 
-export const getBooksMultiplied = async ({limit, offset}: BooksArgs): Promise<BooksResponse> => {
+export const getBooksMultiplied = async ({limit, offset, searchTerm}: BooksArgs): Promise<BooksResponse> => {
   let counter = limit;
   const tasks: Promise<BooksResponse>[] = []
   while (counter > 0) {
-    tasks.push(getBooks({limit: Math.min(counter, MAX_ITEMS), offset: offset + limit - counter}))
+    tasks.push(getBooks({limit: Math.min(counter, MAX_ITEMS), offset: offset + limit - counter, searchTerm}))
     counter = counter - MAX_ITEMS;
   }
   const results = await Promise.all(tasks);
@@ -44,9 +45,8 @@ export const getBooksMultiplied = async ({limit, offset}: BooksArgs): Promise<Bo
 }
 
 export const useBooks = (booksArgs: BooksArgs, options?: UseQueryOptions<BooksResponse>) => {
-  console.log("useBooks")
   return useQuery<BooksResponse>(
-    ["useBooks", booksArgs.offset, booksArgs.limit],
+    ["useBooks", booksArgs.offset, booksArgs.limit, booksArgs.searchTerm],
     () => getBooksMultiplied(booksArgs),
     options
   );
